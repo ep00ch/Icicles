@@ -1,0 +1,11 @@
+# Lines that start with '#' are comments.
+# For a project mostly in C, the following would be a good set of
+# exclude patterns (uncomment them if you want to use them):
+# *.[oa]
+# *~
+# Make sure auth keys dont accidently get uploaded
+*auth.json*
+# You should use `npm install` to add the modules
+node_modules/
+# Don't include the settings file. the script will make this, if needed.
+*icicles.json*
