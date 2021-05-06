@@ -2,7 +2,7 @@
 
 const Discord = require('discord.js');
 const ICAL = require('ical.js');
-const IcalExpander = require('./icalexpander.js');
+const IcalExpander = require('ical-expander');
 const fs = require('fs');
 
 const client = new Discord.Client();
@@ -148,13 +148,14 @@ Verify the url and if it is no longer available use :\n' + prefix + 'unsubscribe
   }
   this.logFuncName(body); // Print the ics if verbose on.
 
+  const icalExpander = new IcalExpander({ ics:body, maxIterations:100 });
+
   if (!this.name) {
     // Get the calendar name from the ical.
-    var icalComponent = new ICAL.Component(ICAL.parse(body));
-    this.name = icalComponent.getFirstPropertyValue('x-wr-calname');
+    this.name = icalExpander.component.getFirstPropertyValue('x-wr-calname');
     if (verbose) {console.log('#'+ channel.name, 'Set Calendar name:', this.name);}
   }
-  const allEvents = this.summarizeExpandedEvents(body);
+  const allEvents = this.summarizeExpandedEvents(icalExpander);
   var dailySummary = allEvents.map(e => `${e.startDate.toJSDate().toISOString()} - ${e.summary}`).join('\n');
   
   console.log('#'+ channel.name, 'daily summary:');
@@ -171,17 +172,15 @@ Verify the url and if it is no longer available use :\n' + prefix + 'unsubscribe
   channel.send(':calendar: ' + this.name + ' events for next ' + termHours + ' hours:\n' + dailySummary);
 }
 
-Icicle.prototype.summarizeExpandedEvents = function (body) {
-  // Get all calendar events, expanding repeat events.
-  const icalExpander = new IcalExpander({ ics:body, maxIterations:100 });
-  
+Icicle.prototype.summarizeExpandedEvents = function (expander) {
+  // Get all calendar events, expanding repeat events.  
   // set up the range of the events we want (now + 1 day)
   var endDate = new Date();
   endDate.setTime(endDate.getTime() + this.period);
   // endDate(endDate.getDate() + 1);
 
   // get all events within the term from now
-  const events = icalExpander.between(new Date(), endDate);
+  const events = expander.between(new Date(), endDate);
   // get information about each event or occurance in the events array.
   const mappedEvents = events.events.map(e => ({ startDate: e.startDate, summary: e.summary, description: e.description }));
   const mappedOccurrences = events.occurrences.map(o => ({ startDate: o.startDate, summary: o.item.summary, description: o.item.description }));
