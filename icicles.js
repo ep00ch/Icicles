@@ -18,15 +18,16 @@ try {
 const request = require('request');
 
 const config = './icicles.json';
-var prefix = "%";
-const term = 1000*60*60*24; // 1 day in ms;
+var prefix = "%";           // This will change to a mention shortly
+
+const msHour = 3600000    // 1000*60*60 // 1 hr in ms;
+const msDay = msHour*24;  //1000*60*60*24; // 1 day in ms;
 
 // This is our IcicleMap
 var channelmap;
 
 // Runtime settings.
 var verbose = false;
-
 process.argv.forEach((argument) => { 
   if (argument == '-v' || argument == '--verbose') {
     verbose = true;
@@ -44,12 +45,8 @@ class IcicleMap extends Map {
       try {
         const jsonText = fs.readFileSync(filePath, 'utf8');
         //console.log(jsonText);
+        var tempMap = new Map(JSON.parse(jsonText));
 
-        const tempMap = new Map(JSON.parse(jsonText));
-        //console.log(tempMap);
-
-        tempMap.forEach((config, key) => { this.set(key, new Icicle(config.id, config.url, new Date(config.startDate))) });
-        
       } catch (err) {
         console.log("Error reading ", filePath,  " : ", err.message);
         //try to rename bad file so we don't overwrite with empty later.
@@ -59,75 +56,70 @@ class IcicleMap extends Map {
           console.log("Error renaming ", filePath,  " : ", err.message);
           //nothing else we can do. If it cant read or rename, probably fs issue.
         }
+        return this;
       }
+      // Add a new icicle for each of the config file entries
+      tempMap.forEach((value, key) => { this.set(key, new Icicle(value)) });
+      if (verbose) {console.log(this)};
     }
   }
   
   save( filePath ) {
     // Save the new subscription settings.
     try {
-      fs.writeFileSync(filePath, JSON.stringify(Array.from(this.entries()), this.replacer, 2), {encoding:'utf8', flag:'w'});
+      // Don't want setInterval or discord client properties serialized.
+      const jsonText = JSON.stringify(Array.from(this.entries()), (k,v) =>
+        (['interval', 'client', 'name'].includes(k)) ? undefined : v, 2);
+      fs.writeFileSync(filePath, jsonText, {encoding:'utf8', flag:'w'});
     } catch (err) {
       console.log("Error writing ", filePath,  " : ", err.message);
     }
   }
   
-  replacer( key, value ) {
-    // can't easily serialize setInterval or discord client, and we don't need to anyway.
-    if (key === 'interval' || key === 'client') {
-      return undefined;
-    }
-    return value;
-  }
 }
 
+// constructior is either the 3 listed arguments, or a property list.
 function Icicle(id, url, startDate) {
 //function Icicle(id, url, startDate) {
-  this.id = id;       // discord channel id
-  this.url = url;     // url to the calendar feed
-  //	this.options = urlToHttpOptions(url);
-  if (startDate) {
-    this.startDate = startDate;	// date & time of the orignal subscription request
+  if (url) {
+    this.id = id;       // discord channel id
+    this.url = url;     // url to the calendar feed
+    //	this.options = urlToHttpOptions(url);
+    this.startDate = (startDate) ? startDate : new Date(); // date & time of the orignal subscription request
   } else {
-    this.startDate = new Date(); // should be pretty close.
+    Object.assign(this, id); // get all of the properties from first argument
   }
-  this.interval; // setInterval, in case we need to cancel. Not saved to disk.
-  this.name;  // the calendar name, as retrieved from the ics file x-wr-calname.
-  this.period = 1000*60*60*24; // 1 day in ms;
-  this.client;
+  this.startDate = new Date(this.startDate);  // easiest to always convert to date
+  this.period = (this.period >= msHour) ? this.period: msDay; // default period is 1 day
+  
+  // The following are not saved to file:
+  this.name;      // iCal calendar name from the ics file x-wr-calname.
+  this.interval;  // setInterval, in case we need to cancel.
+  this.client;    // Discord client.
+  //console.log(this);
 }
 
 
 Icicle.prototype.syncSubscription = function(client) {
   // Start the daily delivery at same time of day as saved icicle.
-  // This is helpful after restarting the script.
-
-  this.client = client;
+  // This is useful after restarting the script.
   // Get the ms of day for now.
   var msofday = Date.now() - new Date().setHours(0,0,0,0);
-
   // Get the ms of day for the start.
   var msofice = this.startDate.getTime() - new Date(this.startDate).setHours(0,0,0,0);
   // Determine how long to wait from now.
-
   var delayms = msofice - msofday;
-    //console.log(delayms, " ", this.period );
-
   // if start is earlier, add 1 day in ms.
   if (delayms < 0) { delayms = delayms + this.period }; 
-  
   // Run a single update to get close events.
-  this.deliverOnce();
-  
+  this.deliverOnce(client);
   // Wait until the same time of day as the saved icicle to restart the daily delivery updates.
   setTimeout(() => { this.startSubscription(client); }, delayms);
 }
 
 Icicle.prototype.startSubscription = function(client) {
-  if (client) { this.client = client;}
   // Get one calendar now.
-  //console.log('startSubscription', this.constructor.name);
-  this.deliverOnce();
+  this.deliverOnce(client);
   // Start the recurring subscription.
   this.interval = setInterval(this.deliverOnce, this.period, this.client);
 }
