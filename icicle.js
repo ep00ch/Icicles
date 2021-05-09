@@ -6,7 +6,7 @@ const msHour = 3600000    // 1000*60*60 // 1 hr in ms;
 const msDay = msHour*24;  //1000*60*60*24; // 1 day in ms;
 
 class Icicle {
-
+// constructior is either the 3 listed arguments, or a property list.
   constructor(id, url, startDate) {
     //function Icicle(id, url, startDate) {
     if (url) {
@@ -80,7 +80,6 @@ class Icicle {
     //this.logFuncName(body); // Print the ics if verbose on.
     
    // const icalExpander = new IcalExpander({ ics:body, maxIterations:100 });
-    
     if (!this.name) {
       // Get the calendar name from the ical.
       this.name = component.getFirstPropertyValue('x-wr-calname');
@@ -130,6 +129,11 @@ class Icicle {
     const channel = this.client.channels.cache.get(this.id);
     console.log('#'+ channel.name, 'Reminding of:', event.summary, '-', event.startDate.toJSDate().toISOString());
     channel.send(':alarm_clock: Reminder: ' + event.summary + ' is Starting Now!\n' + event.description); //, {tts: true}
+  }
+  
+  toJSON = function (name) {
+    // Simplified version of the icicle for serialization by JSON.stringify.
+    return {id: this.id, url: this.url, startDate: this.startDate, period: this.period};
   }
 }
 

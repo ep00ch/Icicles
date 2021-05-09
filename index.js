@@ -29,10 +29,6 @@ var prefix = "%";           // This will change to a mention shortly
 // This is our IcicleMap
 var channelmap;
 
-// Runtime settings.
-
-
-
 // Map of channel id keys and corresponding icicle object values.
 class IcicleMap extends Map {
   constructor( filePath ) {
@@ -66,8 +62,7 @@ class IcicleMap extends Map {
     // Save the new subscription settings.
     try {
       // Don't want setInterval or discord client properties serialized.
-      const jsonText = JSON.stringify(Array.from(this.entries()), (k,v) =>
-        (['interval', 'client', 'name'].includes(k)) ? undefined : v, 2);
+      const jsonText = JSON.stringify(Array.from(this.entries()));
       fs.writeFileSync(filePath, jsonText, {encoding:'utf8', flag:'w'});
     } catch (err) {
       console.log("Error writing ", filePath,  " : ", err.message);
@@ -76,7 +71,6 @@ class IcicleMap extends Map {
   
 }
 
-// constructior is either the 3 listed arguments, or a property list.
 
 client.on('ready', () => {
   //  console.log(client);
