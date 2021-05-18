@@ -1,4 +1,6 @@
 //  Copyright 2021 Eric S. Pooch
+"use strict";
+
 var verbose = false;
 process.argv.forEach((argument) => { 
   if (argument == '-v' || argument == '--verbose') {
@@ -61,8 +63,8 @@ class IcicleMap extends Map {
   save( filePath ) {
     // Save the new subscription settings.
     try {
-      // Don't want setInterval or discord client properties serialized.
-      const jsonText = JSON.stringify(Array.from(this.entries()));
+      // Serialize the Map. Icicles have their own toJSON method which helps.
+      const jsonText = JSON.stringify(Array.from(this.entries()),null, 2);
       fs.writeFileSync(filePath, jsonText, {encoding:'utf8', flag:'w'});
     } catch (err) {
       console.log("Error writing ", filePath,  " : ", err.message);
@@ -97,7 +99,7 @@ client.on('message', msg => {
   const icicleRole = (msg.mentions.roles.size > 0 && msg.mentions.roles.values().next().value.name=='icicles');
   if (!(msg.mentions.has(client.user) || icicleRole )) { return };
 
-  if (msg.member && !msg.member.hasPermission('ADMINISTRATOR')) {
+  if (msg.member && !msg.member.hasPermission('MANAGE_CHANNELS')) {
     return console.log(chaninfo, msg.author.username, 'has insufficient permissions to command icicles.');
   }
   const chanid = msg.channel.id;

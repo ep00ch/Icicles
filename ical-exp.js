@@ -63,118 +63,113 @@ ICAL.helpers.inherits(ICAL.Component, ICAL.ExpComponent, {
     }
     return this;
   },
-      
-    between : function(after, before) {
-      function isEventWithinRange(startTime, endTime) {
-        return (!after || endTime >= after.getTime()) &&
-        (!before || startTime <= before.getTime());
+
+
+  between : function(after, before) {
+    function isEventWithinRange(startTime, endTime) {
+      return (!after || endTime >= after.getTime()) &&
+      (!before || startTime <= before.getTime());
+    }
+    
+    function getTimes(eventOrOccurrence) {
+      const startTime = eventOrOccurrence.startDate.toJSDate().getTime();
+      let endTime = eventOrOccurrence.endDate.toJSDate().getTime();
+
+      // If it is an all day event, the end date is set to 00:00 of the next day
+      // So we need to make it be 23:59:59 to compare correctly with the given range
+      if (eventOrOccurrence.endDate.isDate && (endTime > startTime)) {
+        endTime -= 1;
       }
-      
-      function getTimes(eventOrOccurrence) {
-        const startTime = eventOrOccurrence.startDate.toJSDate().getTime();
-        let endTime = eventOrOccurrence.endDate.toJSDate().getTime();
-  
-        // If it is an all day event, the end date is set to 00:00 of the next day
-        // So we need to make it be 23:59:59 to compare correctly with the given range
-        if (eventOrOccurrence.endDate.isDate && (endTime > startTime)) {
-          endTime -= 1;
-        }
-  
-        return { startTime, endTime };
-      }
-  
-      const exceptions = [];
-  
-      this.events.forEach((event) => {
-        if (event.isRecurrenceException()) exceptions.push(event);
+
+      return { startTime, endTime };
+    }
+
+    const exceptions = [];
+
+    this.events.forEach((event) => {
+      if (event.isRecurrenceException()) exceptions.push(event);
+    });
+
+    const ret = {
+      events: [],
+      occurrences: [],
+    };
+
+    this.events.filter(e => !e.isRecurrenceException()).forEach((event) => {
+      const exdates = [];
+
+      event.component.getAllProperties('exdate').forEach((exdateProp) => {
+        const exdate = exdateProp.getFirstValue();
+        exdates.push(exdate.toJSDate().getTime());
       });
-  
-      const ret = {
-        events: [],
-        occurrences: [],
-      };
-  
-      this.events.filter(e => !e.isRecurrenceException()).forEach((event) => {
-        const exdates = [];
-  
-        event.component.getAllProperties('exdate').forEach((exdateProp) => {
-          const exdate = exdateProp.getFirstValue();
-          exdates.push(exdate.toJSDate().getTime());
-        });
-  
-        // Recurring event is handled differently
-        if (event.isRecurring()) {
-          const iterator = event.iterator();
-  
-          let next;
-          let i = 0;
-  
-          do {
-            i += 1;
-            next = iterator.next();
-            if (next) {
-              const occurrence = event.getOccurrenceDetails(next);
-  
-              const { startTime, endTime } = getTimes(occurrence);
-  
-              const isOccurrenceExcluded = exdates.indexOf(startTime) !== -1;
-  
-              // TODO check that within same day?
-              const exception = exceptions.find(ex => ex.uid === event.uid && ex.recurrenceId.toJSDate().getTime() === occurrence.startDate.toJSDate().getTime());
-  
-              // We have passed the max date, stop
-              if (before && startTime > before.getTime()) break;
-  
-              // Check that we are within our range
-              if (isEventWithinRange(startTime, endTime)) {
-                if (exception) {
-                  ret.events.push(exception);
-                } else if (!isOccurrenceExcluded) {
-                  ret.occurrences.push(occurrence);
-                }
+
+      // Recurring event is handled differently
+      if (event.isRecurring()) {
+        const iterator = event.iterator();
+
+        let next;
+        let i = 0;
+
+        do {
+          i += 1;
+          next = iterator.next();
+          if (next) {
+            const occurrence = event.getOccurrenceDetails(next);
+
+            const { startTime, endTime } = getTimes(occurrence);
+
+            const isOccurrenceExcluded = exdates.indexOf(startTime) !== -1;
+
+            // TODO check that within same day?
+            const exception = exceptions.find(ex => ex.uid === event.uid && ex.recurrenceId.toJSDate().getTime() === occurrence.startDate.toJSDate().getTime());
+
+            // We have passed the max date, stop
+            if (before && startTime > before.getTime()) break;
+
+            // Check that we are within our range
+            if (isEventWithinRange(startTime, endTime)) {
+              if (exception) {
+                ret.events.push(exception);
+              } else if (!isOccurrenceExcluded) {
+                ret.occurrences.push(occurrence);
               }
             }
           }
-          while (next && (!this.maxIterations || i < this.maxIterations));
-  
-          return;
         }
-  
-        // Non-recurring event:
-        const { startTime, endTime } = getTimes(event);
-  
-        if (isEventWithinRange(startTime, endTime)) ret.events.push(event);
-      });
-  
-      return ret;
-    },
-  
-    before: function (before) {
-      return this.between(undefined, before);
-    },
-  
-    after: function (after) {
-      return this.between(after);
-    },
-  
-    all: function() {
-      return this.between();
-    }
+        while (next && (!this.maxIterations || i < this.maxIterations));
+
+        return;
+      }
+
+      // Non-recurring event:
+      const { startTime, endTime } = getTimes(event);
+
+      if (isEventWithinRange(startTime, endTime)) ret.events.push(event);
+    });
+
+    return ret;
+  },
+
+  before: function (before) {
+    return this.between(undefined, before);
+  },
+
+  after: function (after) {
+    return this.between(after);
+  },
+
+  all: function() {
+    return this.between();
+  }
 });
 
-ICAL.parseFromURL = function (url, cb) { 
+ICAL.componentFromURL = function (url, cb) { 
     var response; 
     fetch(url)
       .then(res => {response = res; return res.text()})
       .then(body => {
-        //var ICALComponentEx = ICAL.helpers.extend(ICAL.Component, ComponentExpanded);
-        //console.log(ICAL.Component.prototype);
-
-        //console.log('prototype', ICAL.ExpComponent.prototype);
-
         const jCalData = ICAL.parse(body);
-       // console.log('--', new ICAL.ExpComponent(jCalData));
-
+        // return the ICAL.Component with the expander additions.
         cb( null, response, new ICAL.ExpComponent(jCalData) );
       })
       .catch(err => {
