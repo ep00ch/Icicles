@@ -44,12 +44,12 @@ class IcicleMap extends Map {
         var tempMap = new Map(JSON.parse(jsonText));
 
       } catch (err) {
-        console.log("Error reading ", filePath,  " : ", err.message);
+        console.log('[' + new Date().toUTCString() + '] ', "Error reading ", filePath,  " : ", err.message);
         //try to rename bad file so we don't overwrite with empty later.
         try {
           fs.renameSync(filePath, filePath+'.bad');
         } catch (err) {
-          console.log("Error renaming ", filePath,  " : ", err.message);
+          console.log('[' + new Date().toUTCString() + '] ', "Error renaming ", filePath,  " : ", err.message);
           //nothing else we can do. If it cant read or rename, probably fs issue.
         }
         return this;
@@ -67,7 +67,7 @@ class IcicleMap extends Map {
       const jsonText = JSON.stringify(Array.from(this.entries()),null, 2);
       fs.writeFileSync(filePath, jsonText, {encoding:'utf8', flag:'w'});
     } catch (err) {
-      console.log("Error writing ", filePath,  " : ", err.message);
+      console.log('[' + new Date().toUTCString() + '] ', "Error writing ", filePath,  " : ", err.message);
     }
   }
   
@@ -77,7 +77,7 @@ class IcicleMap extends Map {
 client.on('ready', () => {
   //  console.log(client);
   client.user.setActivity('Calendars', { type: 'WATCHING' });
-  console.log(`Logged in as ${client.user.tag}!`);
+  console.log('[' + new Date().toUTCString() + '] ', `Logged in as ${client.user.tag}!`);
  
   // Load the subscriptions from file.
   channelmap = new IcicleMap( config );
@@ -135,6 +135,14 @@ Or, you can add the feed to your iCloud calendar instead.');
       console.log(chaninfo, 'Unsubscribed.');
       // Save the new subscription settings to file.
       channelmap.save(config);
+    } else {
+      msg.reply('\n:bangbang: This channel is not currently subscribed to any feeds.');
+    }
+  } else if (command === 'reload') {
+    if (channelmap && channelmap.has(chanid)) {
+      var icicle = channelmap.get(chanid);
+      clearInterval(icicle.interval);
+      icicle.startSubscription(client);
     } else {
       msg.reply('\n:bangbang: This channel is not currently subscribed to any feeds.');
     }
